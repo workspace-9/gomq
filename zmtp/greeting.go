@@ -32,7 +32,7 @@ func (g *Greeting) VersionMinor() uint8 {
 }
 
 // SetVersionMinor sets the minor version of this zmtp greeting.
-func (g Greeting) SetVersionMinor(minor uint8) {
+func (g *Greeting) SetVersionMinor(minor uint8) {
 	g[11] = minor
 }
 
@@ -66,7 +66,7 @@ func (g *Greeting) Server() bool {
 }
 
 // SetServer sets the server flag in the greeting.
-func (g Greeting) SetServer(server bool) {
+func (g *Greeting) SetServer(server bool) {
 	if server {
 		g[33] = 1
 	} else {
