@@ -2,6 +2,7 @@ package zmtp
 
 import (
   "encoding/binary"
+  "fmt"
   "io"
 )
 
@@ -30,6 +31,7 @@ func (c Command) Send(w io.Writer) error {
 
 // writeShortCommand writes a short command to the writer.
 func (c Command) writeShortCommand(w io.Writer, length uint8) error {
+  fmt.Printf("write short command (length=%d)\n", length)
   if _, err := w.Write([]byte{
     CommandSizeShort, length, byte(len(c.Name)),
   }); err != nil {
@@ -49,7 +51,8 @@ func (c Command) writeShortCommand(w io.Writer, length uint8) error {
 
 // writeLongCommand writes a long command to the writer.
 func (c Command) writeLongCommand(w io.Writer, length uint64) error {
-  if _, err := w.Write([]byte{CommandSizeShort}); err != nil {
+  fmt.Println("write long command")
+  if _, err := w.Write([]byte{CommandSizeLong}); err != nil {
     return err
   }
 

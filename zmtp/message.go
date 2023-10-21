@@ -59,8 +59,8 @@ var ErrBadMessageHeader badMessageHeader
 // ReadMessage reads a message from the reader.
 func ReadMessage(r io.Reader) (m Message, more bool, err error) {
   var buffer [1]byte
-  if _, err = r.Read(buffer[:1]); err != nil {
-    return
+  if n, err := r.Read(buffer[:1]); n != 1 || err != nil {
+    return nil, false, err
   }
 
   var shortSize bool
@@ -84,8 +84,8 @@ func ReadMessage(r io.Reader) (m Message, more bool, err error) {
 
   var messageLen uint64
   if shortSize {
-    if _, err = r.Read(buffer[:1]); err != nil {
-      return
+    if n, err := r.Read(buffer[:1]); n != 1 || err != nil {
+      return nil, false, err
     }
     messageLen = uint64(buffer[0])
   } else {
@@ -95,6 +95,6 @@ func ReadMessage(r io.Reader) (m Message, more bool, err error) {
   }
 
   m = make([]byte, messageLen)
-  _, err = r.Read(m)
+  _, err = io.ReadFull(r, m)
   return
 }
