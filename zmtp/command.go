@@ -6,113 +6,110 @@ import (
   "io"
 )
 
-type CommandSize int
-
-const (
-  CommandSizeShort = 0x04
-  CommandSizeLong = 0x06
-)
-
 type Command struct {
   Name string
   Body []byte
 }
 
-// WriteTo writes the command to a writer.
-func (c Command) Send(w io.Writer) error {
-  nameBytes := uint64(len(c.Name)) + 1
-  bodyBytes := uint64(len(c.Body))
-  total := nameBytes + bodyBytes
-  if total <= 255 {
-    return c.writeShortCommand(w, uint8(total))
-  }
-  return c.writeLongCommand(w, total)
-}
-
-// writeShortCommand writes a short command to the writer.
-func (c Command) writeShortCommand(w io.Writer, length uint8) error {
-  fmt.Printf("write short command (length=%d)\n", length)
-  if _, err := w.Write([]byte{
-    CommandSizeShort, length, byte(len(c.Name)),
-  }); err != nil {
-    return err
-  }
-
-  if _, err := io.WriteString(w, c.Name); err != nil {
-    return err
-  }
-
-  if _, err := w.Write(c.Body); err != nil {
-    return err
-  }
-
-  return nil
-}
-
-// writeLongCommand writes a long command to the writer.
-func (c Command) writeLongCommand(w io.Writer, length uint64) error {
-  fmt.Println("write long command")
-  if _, err := w.Write([]byte{CommandSizeLong}); err != nil {
-    return err
-  }
-
-  if err := binary.Write(w, binary.BigEndian, length); err != nil {
-    return err
-  }
-
-  if _, err := w.Write([]byte{byte(len(c.Name))}); err != nil {
-    return err
-  }
-
-  if _, err := io.WriteString(w, c.Name); err != nil {
-    return err
-  }
-
-  if _, err := w.Write(c.Body); err != nil {
-    return err
-  }
-
-  return nil
-}
-
-type badCommandHeader struct{}
-
-func (badCommandHeader) Error() string {
-  return "Bad command header"
-}
-
-var ErrBadCommandHeader badCommandHeader
-
-func ReadCommand(r io.Reader) (c Command, err error) {
-  var buffer [1]byte
-  if _, err = r.Read(buffer[:1]); err != nil {
-    return
-  }
-
-  var commandSize uint64
-  switch buffer[0] {
-  case CommandSizeLong:
-    if err = binary.Read(r, binary.BigEndian, &commandSize); err != nil {
-      return
+// WriteTo writes a command to the given writer.
+func (c Command) WriteTo(w io.Writer) (int64, error) {
+  total := int64(0)
+  if bodyLen := c.BodyLen(); bodyLen <= 255 {
+    n, err := w.Write([]byte{0x04, uint8(bodyLen)})
+    total += int64(n)
+    if err != nil {
+      return total, err
     }
-  case CommandSizeShort:
-    if _, err = r.Read(buffer[:1]); err != nil {
-      return
+  } else {
+    data := [9]byte{}
+    data[0] = 0x06
+    binary.BigEndian.PutUint64(data[1:], uint64(bodyLen))
+    n, err := w.Write(data[:])
+    total += int64(n)
+    if err != nil {
+      return total, err
+    }
+  }
+
+  n, err := w.Write([]byte{uint8(len(c.Name))})
+  total += int64(n)
+  if err != nil {
+    return total, err
+  }
+
+  n, err = w.Write([]byte(c.Name))
+  total += int64(n)
+  if err != nil {
+    return total, err
+  }
+
+  n, err = w.Write(c.Body)
+  total += int64(n)
+  return total, err
+}
+
+type invalidCommandSize struct{}
+
+func (invalidCommandSize) Error() string {
+  return "Invalid command size"
+}
+
+var ErrInvalidCommandSize invalidCommandSize
+
+type invalidNameLength struct{}
+
+func (invalidNameLength) Error() string {
+  return "Invalid name length"
+}
+
+var ErrInvalidNameLength invalidNameLength
+
+// ReadFrom reads a command from the given reader.
+func (c *Command) ReadFrom(r io.Reader) (int64, error) {
+  total := int64(0)
+  var b [1]byte
+  n, err := io.ReadFull(r, b[:])
+  total += int64(n)
+  if err != nil {
+    return total, err
+  }
+
+  var cmdLen uint64
+  switch b[0] {
+  case 0x04:
+    n, err := io.ReadFull(r, b[:])
+    total += int64(n)
+    if err != nil {
+      return total, err
     }
 
-    commandSize = uint64(buffer[0])
+    cmdLen = uint64(b[0])
+  case 0x06:
+    if err := binary.Read(r, binary.BigEndian, &cmdLen); err != nil {
+      return total, err
+    }
+    total += 8
   default:
-    err = ErrBadMessageHeader
-    return
+    return total, fmt.Errorf("%w: unrecognized size specified %x", ErrInvalidCommandSize, b[0])
   }
 
-  body := make([]byte, commandSize)
-  if _, err = r.Read(body); err != nil {
-    return
+  body := make([]byte, cmdLen)
+  n, err = io.ReadFull(r, body)
+  total += int64(n)
+  if err != nil {
+    return total, err
   }
 
-  nameLen := body[0]
+  nameLen := int(body[0])
+  if nameLen > len(body[1:]) {
+    return total, fmt.Errorf("%w: name length > body size", ErrInvalidNameLength)
+  }
   c.Name = string(body[1:nameLen+1])
   c.Body = body[nameLen+1:]
-  return
+  return total, nil
+}
+
+// BodyLen returns the body length of the given message.
+func (c Command) BodyLen() int32 {
+  return int32(len(c.Name)) + 1 + int32(len(c.Body))
 }
