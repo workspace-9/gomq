@@ -10,13 +10,16 @@ type Mechanism interface {
 	Name() string
 
 	// ValidateGreeting returns an error if the greeting from another side is invalid for this mechanism.
-	ValidateGreeting(*Greeting) error
+	ValidateGreeting(*Greeting) (err error)
 
 	// Handshake performs a handshake with the Connection.
-	Handshake(net.Conn, Metadata) (Socket, Metadata, error)
+	Handshake(net.Conn, Metadata) (s Socket, meta Metadata, err error)
 
 	// Server field for the greeting for this handshake.
 	Server() bool
+
+  // SetOption sets an option in the mechanism.
+  SetOption(option int, value string)
 }
 
 // Socket.
@@ -29,6 +32,9 @@ type Socket interface {
 
 	// SendCommand sends a command on the socket.
 	SendCommand(Command) error
+
+  // Access to the underlying conn.
+  Net() net.Conn
 
 	// Close the socket.
 	Close() error

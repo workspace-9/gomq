@@ -17,7 +17,7 @@ func (Null) Server() bool {
 }
 
 // ValidateGreeting ensures the other side is not a server.
-func (Null) ValidateGreeting(g *zmtp.Greeting) error {
+func (Null) ValidateGreeting(g *zmtp.Greeting) (error) {
 	if g.Server() {
 		return ErrCannotBeServer
 	}
@@ -67,4 +67,9 @@ var ErrNotReady notReady
 
 type NullSocket struct {
 	net.Conn
+}
+
+// Net returns the underlying net.Conn for the socket.
+func (n NullSocket) Net() net.Conn {
+  return n.Conn
 }

@@ -8,36 +8,36 @@ import (
 
 type Metadata []byte
 
+
 // Properties returns a slice of properties held in this metadata.
-func (m Metadata) Properties() ([][2]string, error) {
+func (m Metadata) Properties(f func(name string, value string)) (error) {
 	idx := 0
-	props := make([][2]string, 0)
 
 	for idx < len(m) {
 		nameLen := int(m[idx])
 		idx += 1
 		if idx+nameLen >= len(m) {
-			return nil, ErrNameTooLong
+			return ErrNameTooLong
 		}
 		name := string(m[idx : idx+nameLen])
 		idx += nameLen
 
 		if idx+4 >= len(m) {
-			return nil, fmt.Errorf("%w: not enough bytes for next value name", ErrInvalidMetadata)
+			return fmt.Errorf("%w: not enough bytes for next value name", ErrInvalidMetadata)
 		}
 		valueLen := int(binary.BigEndian.Uint32(m[idx:]))
 		idx += 4
 
 		if idx+valueLen > len(m) {
-			return nil, fmt.Errorf("%w: not enough bytes for next value", ErrInvalidMetadata)
+			return fmt.Errorf("%w: not enough bytes for next value", ErrInvalidMetadata)
 		}
 		value := string(m[idx : idx+valueLen])
 		idx += valueLen
 
-		props = append(props, [2]string{name, value})
+    f(name, value)
 	}
 
-	return props, nil
+	return nil
 }
 
 // AddProperty to the Metadata.

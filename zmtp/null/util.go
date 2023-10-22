@@ -1,5 +1,7 @@
 package null
 
+import "io"
+
 type ByteReader byte
 
 func (b ByteReader) Read(p []byte) (n int, err error) {
@@ -8,5 +10,5 @@ func (b ByteReader) Read(p []byte) (n int, err error) {
 	}
 
 	p[0] = byte(b)
-	return 1, nil
+	return 1, io.EOF
 }
