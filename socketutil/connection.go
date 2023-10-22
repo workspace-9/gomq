@@ -183,6 +183,7 @@ func (c *ConnectionDriver) run() error {
       if fatal {
         return err
       }
+      time.Sleep(c.config.ReconnectTimeout())
       c.socket = nil
     }
   }
