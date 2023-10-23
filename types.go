@@ -24,6 +24,9 @@ type SocketDriver interface {
 
   // Recv either a command or a message on the socket.
   Recv() ([]zmtp.Message, error)
+
+  // Close the socket
+  Close() error
 }
 
 // SocketConstructor constructs a socket.

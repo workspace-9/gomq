@@ -79,3 +79,7 @@ func (s Socket) Recv() ([][]byte, error) {
 
   return data, nil
 }
+
+func (s Socket) Close() error {
+  return s.driver.Close()
+}
