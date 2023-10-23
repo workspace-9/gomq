@@ -169,6 +169,6 @@ func (b *BindDriver) handleConn(conn net.Conn) {
     gomq.EventTypeDisconnected,
     transport.BuildURL(conn.LocalAddr(), b.transport),
     transport.BuildURL(conn.RemoteAddr(), b.transport),
-    err.Error(),
+    "",
   })
 }
