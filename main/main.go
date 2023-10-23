@@ -1,74 +1,57 @@
 package main
 
 import (
-	"context"
-	"log"
-	"time"
+  "context"
+  "log"
+  "time"
 
-	"github.com/exe-or-death/gomq/transport/tcp"
-	"github.com/exe-or-death/gomq/zmtp"
-	"github.com/exe-or-death/gomq/zmtp/null"
-	"github.com/pebbe/zmq4"
+  "github.com/pebbe/zmq4"
+  "github.com/exe-or-death/gomq"
+  _ "github.com/exe-or-death/gomq/transport/tcp"
+  _ "github.com/exe-or-death/gomq/zmtp/null"
+  _ "github.com/exe-or-death/gomq/types/pull"
 )
 
 func main() {
-	pebSock, _ := zmq4.NewSocket(zmq4.PULL)
-	pebSock.Bind("tcp://127.0.0.1:52849")
+  go runPushSock()
+  runPullSock()
+}
 
-	go func() {
-		for {
-			message, err := pebSock.RecvMessage(0)
-			if err != nil {
-				log.Println(err)
-			} else {
-				for _, s := range message {
-					log.Println("recv:", s)
-				}
-			}
-		}
-	}()
+func runPullSock() {
+  ctx := gomq.NewContext(context.Background())
+  sock, err := ctx.NewSocket("PULL", "NULL")
+  if err != nil {
+    log.Fatalf("Failed creating socket: %s", err.Error())
+  }
 
-	conn, err := tcp.TCPTransport{}.Connect(context.Background(), "127.0.0.1:52849")
-	if err != nil {
-		log.Fatalf("Failed connecting to remote socket: %s", err.Error())
-	}
+  if err := sock.Connect("tcp://127.0.0.1:52849"); err != nil {
+    log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
+  }
 
-	mech := null.Null{}
-	greeting := zmtp.NewGreeting()
-	greeting.SetMechanism(mech.Name())
-	greeting.SetVersionMajor(3)
-	greeting.SetVersionMinor(1)
-	if _, err := greeting.WriteTo(conn); err != nil {
-		log.Fatalf("Failed writing greeting: %s", err.Error())
-	}
+  for {
+    msg, err := sock.Recv()
+    if err != nil {
+      log.Printf("Failed receiving: %s", err.Error())
+    }
 
-	var respGreeting zmtp.Greeting
-	if _, err := respGreeting.ReadFrom(conn); err != nil {
-		log.Fatalf("Failed reading greeting: %s", err.Error())
-	}
+    for _, part := range msg {
+      log.Println(string(part))
+    }
+  }
+}
 
-	if err := mech.ValidateGreeting(&respGreeting); err != nil {
-		log.Fatalf("Failed validating greeting: %s", err.Error())
-	}
+func runPushSock() {
+  time.Sleep(time.Second*5)
+  sock, err := zmq4.NewSocket(zmq4.PUSH)
+  if err != nil {
+    log.Fatalf("Failed creating push socket: %s", err.Error())
+  }
 
-	props := zmtp.Metadata{}
-	props.AddProperty("Socket-Type", "PUSH")
-	socket, respProps, err := mech.Handshake(conn, props)
-	if err != nil {
-		log.Fatalf("Failed handshake: %s", err.Error())
-	}
-
-	respPropValues, err := respProps.Properties()
-	if err != nil {
-		log.Fatalf("Failed reading response properties: %s", err.Error())
-	}
-	for _, v := range respPropValues {
-		log.Printf("Detected prop: %s=%s", v[0], v[1])
-	}
-
-	if err := socket.SendMessage(zmtp.Message{false, []byte("hey!")}); err != nil {
-		log.Fatalf("Failed sending message: %s", err.Error())
-	}
-
-	time.Sleep(time.Second)
+  sock.Bind("tcp://127.0.0.01:52849")
+  for {
+    if _, err := sock.SendMessage("hello!"); err != nil {
+      log.Fatalf("Failed sending message: %s", err.Error())
+    }
+    time.Sleep(time.Second)
+  }
 }
