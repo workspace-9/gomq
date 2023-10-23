@@ -38,6 +38,9 @@ type ConnectionDriverHandle struct {
 
 func (c *ConnectionDriver) Close() error {
   c.cancelFunc()
+  if c.socket != nil {
+    c.socket.Close()
+  }
   <-c.done
   return c.final
 }
@@ -45,16 +48,22 @@ func (c *ConnectionDriver) Close() error {
 func (c *ConnectionDriver) TryConnect() (fatal bool, err error) {
   ctx, cancel := context.WithTimeout(c.ctx, c.config.ConnectTimeout())
   conn, fatal, err := c.transport.Connect(ctx, c.address)
+  cancel()
+  if err != nil {
+    c.eventBus.Post(gomq.Event{
+      gomq.EventTypeConnectFailed,
+      "",
+      c.address,
+      err.Error(),
+    })
+    return fatal, err
+  }
   c.eventBus.Post(gomq.Event{
     gomq.EventTypeConnected,
     transport.BuildURL(conn.LocalAddr(), c.transport),
     transport.BuildURL(conn.RemoteAddr(), c.transport),
-    err.Error(),
+    "",
   })
-  cancel()
-  if err != nil {
-    return fatal, err
-  }
 
   greeting := zmtp.NewGreeting()
   greeting.SetVersionMajor(3)
@@ -116,7 +125,7 @@ func (c *ConnectionDriver) TryConnect() (fatal bool, err error) {
     gomq.EventTypeReady,
     transport.BuildURL(conn.LocalAddr(), c.transport),
     transport.BuildURL(conn.RemoteAddr(), c.transport),
-    err.Error(),
+    "",
   })
   return false, nil
 }

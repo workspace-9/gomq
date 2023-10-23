@@ -65,6 +65,8 @@ func (notReady) Error() string {
 
 var ErrNotReady notReady
 
+func (n Null) SetOption(string, string) {}
+
 type NullSocket struct {
 	net.Conn
 }
@@ -73,3 +75,4 @@ type NullSocket struct {
 func (n NullSocket) Net() net.Conn {
   return n.Conn
 }
+

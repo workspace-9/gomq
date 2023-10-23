@@ -3,7 +3,16 @@ package tcp
 import (
 	"context"
 	"net"
+
+  "github.com/exe-or-death/gomq/transport"
+  "github.com/exe-or-death/gomq"
 )
+
+func init() {
+  gomq.RegisterTransport("tcp", func() transport.Transport {
+    return TCPTransport{}
+  })
+}
 
 // TCPTransport implements transport.Transport
 type TCPTransport struct{}

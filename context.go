@@ -2,6 +2,7 @@ package gomq
 
 import (
   "context"
+  "fmt"
   "sync"
 
   "github.com/exe-or-death/gomq/transport"
@@ -39,6 +40,43 @@ func (c *Context) getTransport(name string) (transport.Transport, bool) {
   return nil, false
 }
 
-func (c *Context) NewSocket() {
+func (c *Context) NewSocket(typ string, mech string) (*Socket, error) {
+  sock := &Socket{}
 
+  constructor, ok := FindSocketType(typ)
+  if !ok {
+    return nil, fmt.Errorf("%w: %s", ErrTypeNotFound, typ)
+  }
+
+  mechConstructor, ok := FindMechanism(mech)
+  if !ok {
+    return nil, fmt.Errorf("%w: %s", ErrMechanismNotFound, mech)
+  }
+
+  conf := &Config{}
+  conf.Default()
+  driver, err := constructor(c.ctx, mechConstructor(), conf, PrintBus{})
+  if err != nil {
+    return nil, err
+  }
+
+  sock.driver = driver
+  sock.ctx = c
+  return sock, nil
 }
+
+type typeNotFound struct{}
+
+func (typeNotFound) Error() string {
+  return "Type not found"
+}
+
+var ErrTypeNotFound typeNotFound
+
+type mechanismNotFound struct{}
+
+func (mechanismNotFound) Error() string {
+  return "Mechanism not found"
+}
+
+var ErrMechanismNotFound mechanismNotFound

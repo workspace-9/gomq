@@ -9,25 +9,28 @@ import (
   "github.com/exe-or-death/gomq/transport"
 )
 
-type IncomingConnectionHandler func(zmtp.Socket) error
-
 type BindDriver struct {
   ctx context.Context
   cancel context.CancelFunc
   transport transport.Transport
   mechanism zmtp.Mechanism
   address string
-  handler IncomingConnectionHandler
+  handler SocketHandler
   eventBus gomq.EventBus
   meta MetadataProvider
   metaHandler MetadataHandler
+  ln net.Listener
   done chan struct{}
   final error
 }
 
-type BindDriverHandle struct {
-  Driver *BindDriver
-  Queue chan zmtp.CommandOrMessage
+func (b *BindDriver) Close() error {
+  b.cancel()
+  if b.ln != nil {
+    b.ln.Close()
+  }
+  <-b.done
+  return b.final
 }
 
 func (b *BindDriver) Setup(
@@ -35,7 +38,7 @@ func (b *BindDriver) Setup(
   tp transport.Transport,
   mech zmtp.Mechanism,
   addr string,
-  handler IncomingConnectionHandler,
+  handler SocketHandler,
   eventBus gomq.EventBus,
   meta MetadataProvider,
   metaHandler MetadataHandler,
@@ -53,18 +56,34 @@ func (b *BindDriver) Setup(
   b.done = make(chan struct{})
 } 
 
-func (b *BindDriver) run() error {
+func (b *BindDriver) TryBind() error {
   listener, err := b.transport.Bind(b.address)
   if err != nil {
     return err
   }
+  b.ln = listener
+  return nil
+}
+
+func (b *BindDriver) Run() {
+  b.final = b.run()
+  b.cancel()
+  close(b.done)
+}
+
+func (b *BindDriver) run() error {
+  if b.ln == nil {
+    if err := b.TryBind(); err != nil {
+      return err
+    }
+  }
 
   for {
-    conn, err := listener.Accept()
+    conn, err := b.ln.Accept()
     if err != nil {
       b.eventBus.Post(gomq.Event{
         gomq.EventTypeAcceptFailed,
-        transport.BuildURL(conn.LocalAddr(), b.transport),
+        b.address,
         "",
         err.Error(),
       })
@@ -75,7 +94,7 @@ func (b *BindDriver) run() error {
       gomq.EventTypeAccepted,
       transport.BuildURL(conn.LocalAddr(), b.transport),
       transport.BuildURL(conn.RemoteAddr(), b.transport),
-      err.Error(),
+      "",
     })
 
     go b.handleConn(conn)
@@ -142,7 +161,7 @@ func (b *BindDriver) handleConn(conn net.Conn) {
     gomq.EventTypeReady,
     transport.BuildURL(conn.LocalAddr(), b.transport),
     transport.BuildURL(conn.RemoteAddr(), b.transport),
-    err.Error(),
+    "",
   })
 
   b.handler(sock)
