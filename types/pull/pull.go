@@ -148,11 +148,9 @@ func HandleSock(ctx context.Context, sock zmtp.Socket, queue chan<- zmtp.Message
 			continue
 		}
 
-		if !next.Message.More {
-			select {
-			case queue <- *next.Message:
-			case <-ctx.Done():
-			}
+		select {
+		case queue <- *next.Message:
+		case <-ctx.Done():
 		}
 	}
 }

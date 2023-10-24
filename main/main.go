@@ -10,11 +10,12 @@ import (
 	_ "github.com/exe-or-death/gomq/types/pull"
 	_ "github.com/exe-or-death/gomq/types/push"
 	_ "github.com/exe-or-death/gomq/zmtp/null"
+	"github.com/pebbe/zmq4"
 )
 
 func main() {
 	go runPushSock()
-	runPullSock()
+	runPebbePullSock()
 }
 
 func runPullSock() {
@@ -40,6 +41,28 @@ func runPullSock() {
 	}
 }
 
+func runPebbePullSock() {
+	sock, err := zmq4.NewSocket(zmq4.PULL)
+	if err != nil {
+		log.Fatalf("Failed creating socket: %s", err.Error())
+	}
+
+	if err := sock.Bind("ipc://file.txt"); err != nil {
+		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
+	}
+
+	for idx := 0; idx < 2; idx++ {
+		msg, err := sock.RecvMessage(0)
+		if err != nil {
+			log.Printf("Failed receiving: %s", err.Error())
+		}
+
+		for _, part := range msg {
+			log.Println("RX:", idx, string(part))
+		}
+	}
+}
+
 func runPushSock() {
 	time.Sleep(time.Second)
 	ctx := gomq.NewContext(context.Background())
@@ -52,9 +75,10 @@ func runPushSock() {
 		log.Fatalf("Failed binding to local endpoint: %s", err.Error())
 	}
 
-	if err := sock.Send([][]byte{[]byte("hola!")}); err != nil {
+	if err := sock.Send([][]byte{[]byte("hola!"), []byte("senor!")}); err != nil {
 		log.Fatalf("Failed sending: %s", err.Error())
 	}
+	time.Sleep(time.Second)
 
 	if err := sock.Disconnect("ipc://file.txt"); err != nil {
 		log.Fatalf("Failed disconnecting: %s", err.Error())
