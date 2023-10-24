@@ -31,3 +31,19 @@ func (alreadyBound) Error() string {
 }
 
 var ErrAlreadyBound alreadyBound
+
+type neverConnected struct {}
+
+func (neverConnected) Error() string {
+  return "Never connected"
+}
+
+var ErrNeverConnected neverConnected
+
+type neverBound struct {}
+
+func (neverBound) Error() string {
+  return "Never bound"
+}
+
+var ErrNeverBound neverBound

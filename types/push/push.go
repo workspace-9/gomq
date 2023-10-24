@@ -61,6 +61,19 @@ func (p *Push) Connect(tp transport.Transport, addr string) error {
   return nil
 }
 
+func (p *Push) Disconnect(addr string) error {
+  driver, ok := p.ConnectionDrivers[addr]
+  if !ok {
+    return fmt.Errorf("%w to %s", types.ErrNeverConnected, addr)
+  }
+  
+  delete(p.ConnectionDrivers, addr)
+  err := driver.Close()
+  p.ConnectionHandles[addr].Close()
+  delete (p.ConnectionHandles, addr)
+  return err
+}
+
 func (p *Push) Bind(tp transport.Transport, addr string) error {
   driver := &socketutil.BindDriver{}
   driver.Setup(
@@ -85,6 +98,17 @@ func (p *Push) Bind(tp transport.Transport, addr string) error {
   p.BindDrivers[addr] = driver
   go driver.Run()
   return nil
+}
+
+func (p *Push) Unbind(addr string) error {
+  driver, ok := p.BindDrivers[addr]
+  if !ok {
+    return fmt.Errorf("%w to %s", types.ErrNeverBound, addr)
+  }
+  
+  delete(p.BindDrivers, addr)
+  err := driver.Close()
+  return err
 }
 
 func PullFromWritePoint(wc *socketutil.WaitCloser[struct{}], push chan<- zmtp.Message, writePoint chan []zmtp.Message) {

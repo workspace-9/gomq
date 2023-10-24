@@ -16,8 +16,14 @@ type SocketDriver interface {
   // Connect to the remote address using the given transport.
   Connect(tp transport.Transport, addr string) error
 
+  // Disconnect from the address.
+  Disconnect(addr string) error
+
   // Bind to the given address using the given transport.
   Bind(tp transport.Transport, addr string) error
+  
+  // Unbind from the bound address.
+  Unbind(addr string) error
   
   // Send a message over the socket.
   Send([]zmtp.Message) error

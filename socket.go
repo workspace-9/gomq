@@ -83,3 +83,11 @@ func (s Socket) Recv() ([][]byte, error) {
 func (s Socket) Close() error {
   return s.driver.Close()
 }
+
+func (s Socket) Disconnect(addr string) error {
+  return s.driver.Disconnect(addr)
+}
+
+func (s Socket) Unbind(addr string) error {
+  return s.driver.Unbind(addr)
+}

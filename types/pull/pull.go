@@ -61,6 +61,19 @@ func (p *Pull) Connect(tp transport.Transport, addr string) error {
   return nil
 }
 
+func (p *Pull) Disconnect(addr string) error {
+  driver, ok := p.ConnectionDrivers[addr]
+  if !ok {
+    return fmt.Errorf("%w to %s", types.ErrNeverConnected, addr)
+  }
+  
+  delete(p.ConnectionDrivers, addr)
+  err := driver.Close()
+  p.ConnectionHandles[addr].Close()
+  delete (p.ConnectionHandles, addr)
+  return err
+}
+
 func (p *Pull) Bind(tp transport.Transport, addr string) error {
   if _, ok := p.BindDrivers[addr]; ok {
     return fmt.Errorf("%w: %s", types.ErrAlreadyBound, addr)
@@ -89,6 +102,17 @@ func (p *Pull) Bind(tp transport.Transport, addr string) error {
   p.BindDrivers[addr] = driver
   go driver.Run()
   return nil
+}
+
+func (p *Pull) Unbind(addr string) error {
+  driver, ok := p.BindDrivers[addr]
+  if !ok {
+    return fmt.Errorf("%w to %s", types.ErrNeverBound, addr)
+  }
+  
+  delete(p.BindDrivers, addr)
+  err := driver.Close()
+  return err
 }
 
 func PushIntoReadPoint(wc *socketutil.WaitCloser[struct{}], pull <-chan zmtp.Message, readPoint chan []zmtp.Message) {
