@@ -8,9 +8,8 @@ import (
 
 type Metadata []byte
 
-
 // Properties returns a slice of properties held in this metadata.
-func (m Metadata) Properties(f func(name string, value string)) (error) {
+func (m Metadata) Properties(f func(name string, value string)) error {
 	idx := 0
 
 	for idx < len(m) {
@@ -34,7 +33,7 @@ func (m Metadata) Properties(f func(name string, value string)) (error) {
 		value := string(m[idx : idx+valueLen])
 		idx += valueLen
 
-    f(name, value)
+		f(name, value)
 	}
 
 	return nil

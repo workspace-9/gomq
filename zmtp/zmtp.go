@@ -18,8 +18,8 @@ type Mechanism interface {
 	// Server field for the greeting for this handshake.
 	Server() bool
 
-  // SetOption sets an option in the mechanism.
-  SetOption(option string, value string)
+	// SetOption sets an option in the mechanism.
+	SetOption(option string, value string)
 }
 
 // Socket.
@@ -33,8 +33,8 @@ type Socket interface {
 	// SendCommand sends a command on the socket.
 	SendCommand(Command) error
 
-  // Access to the underlying conn.
-  Net() net.Conn
+	// Access to the underlying conn.
+	Net() net.Conn
 
 	// Close the socket.
 	Close() error

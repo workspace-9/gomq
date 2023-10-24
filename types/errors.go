@@ -3,47 +3,47 @@ package types
 type operationNotPermitted struct{}
 
 func (operationNotPermitted) Error() string {
-  return "Operation not permitted"
+	return "Operation not permitted"
 }
 
 var ErrOperationNotPermitted operationNotPermitted
 
-type allPeersBusy struct {}
+type allPeersBusy struct{}
 
 func (allPeersBusy) Error() string {
-  return "All peers busy"
+	return "All peers busy"
 }
 
 var ErrAllPeersBusy allPeersBusy
 
-type alreadyConnected struct {}
+type alreadyConnected struct{}
 
 func (alreadyConnected) Error() string {
-  return "Already connected"
+	return "Already connected"
 }
 
 var ErrAlreadyConnected alreadyConnected
 
-type alreadyBound struct {}
+type alreadyBound struct{}
 
 func (alreadyBound) Error() string {
-  return "Already bound"
+	return "Already bound"
 }
 
 var ErrAlreadyBound alreadyBound
 
-type neverConnected struct {}
+type neverConnected struct{}
 
 func (neverConnected) Error() string {
-  return "Never connected"
+	return "Never connected"
 }
 
 var ErrNeverConnected neverConnected
 
-type neverBound struct {}
+type neverBound struct{}
 
 func (neverBound) Error() string {
-  return "Never bound"
+	return "Never bound"
 }
 
 var ErrNeverBound neverBound

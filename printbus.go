@@ -1,11 +1,11 @@
 package gomq
 
 import (
-  "log"
+	"log"
 )
 
-type PrintBus struct {}
+type PrintBus struct{}
 
 func (PrintBus) Post(ev Event) {
-  log.Printf("%s: %s <-> %s (%s)", ev.EventType, ev.LocalAddr, ev.RemoteAddr, ev.Notes)
+	log.Printf("%s: %s <-> %s (%s)", ev.EventType, ev.LocalAddr, ev.RemoteAddr, ev.Notes)
 }
