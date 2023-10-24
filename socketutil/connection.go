@@ -3,6 +3,7 @@ package socketutil
 import (
   "context"
   "time"
+  "net/url"
 
   "github.com/exe-or-death/gomq"
   "github.com/exe-or-death/gomq/transport"
@@ -20,7 +21,7 @@ type ConnectionDriver struct {
   mechanism zmtp.Mechanism
   socket zmtp.Socket
   transport transport.Transport
-  address string
+  url *url.URL
   config *gomq.Config
   eventBus gomq.EventBus
   handler SocketHandler
@@ -28,7 +29,6 @@ type ConnectionDriver struct {
   metaHandler MetadataHandler
   cancelFunc context.CancelFunc
   done chan struct{}
-  final error
 }
 
 type ConnectionDriverHandle struct {
@@ -38,22 +38,23 @@ type ConnectionDriverHandle struct {
 
 func (c *ConnectionDriver) Close() error {
   c.cancelFunc()
+  var err error
   if c.socket != nil {
-    c.socket.Close()
+    err = c.socket.Close()
   }
   <-c.done
-  return c.final
+  return err
 }
 
 func (c *ConnectionDriver) TryConnect() (fatal bool, err error) {
   ctx, cancel := context.WithTimeout(c.ctx, c.config.ConnectTimeout())
-  conn, fatal, err := c.transport.Connect(ctx, c.address)
+  conn, fatal, err := c.transport.Connect(ctx, c.url)
   cancel()
   if err != nil {
     c.eventBus.Post(gomq.Event{
       gomq.EventTypeConnectFailed,
       "",
-      c.address,
+      c.url.String(),
       err.Error(),
     })
     return fatal, err
@@ -134,7 +135,7 @@ func (c *ConnectionDriver) Setup(
   ctx context.Context,
   mech zmtp.Mechanism,
   tp transport.Transport,
-  addr string,
+  url *url.URL,
   conf *gomq.Config,
   eventBus gomq.EventBus,
   handler SocketHandler,
@@ -146,7 +147,7 @@ func (c *ConnectionDriver) Setup(
   c.cancelFunc = cancel
   c.mechanism = mech
   c.transport = tp
-  c.address = addr
+  c.url = url
   c.config = conf
   c.eventBus = eventBus
   c.handler = handler
@@ -156,7 +157,7 @@ func (c *ConnectionDriver) Setup(
 }
 
 func (c *ConnectionDriver) Run() {
-  c.final = c.run()
+  c.run()
   c.cancelFunc()
   close(c.done)
 }

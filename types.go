@@ -2,6 +2,7 @@ package gomq
 
 import (
   "context"
+  "net/url"
   "sync"
 
   "github.com/exe-or-death/gomq/zmtp"
@@ -14,16 +15,16 @@ type SocketDriver interface {
   Name() string
 
   // Connect to the remote address using the given transport.
-  Connect(tp transport.Transport, addr string) error
+  Connect(tp transport.Transport, url *url.URL) error
 
   // Disconnect from the address.
-  Disconnect(addr string) error
+  Disconnect(url *url.URL) error
 
   // Bind to the given address using the given transport.
-  Bind(tp transport.Transport, addr string) error
+  Bind(tp transport.Transport, url *url.URL) error
   
   // Unbind from the bound address.
-  Unbind(addr string) error
+  Unbind(url *url.URL) error
   
   // Send a message over the socket.
   Send([]zmtp.Message) error

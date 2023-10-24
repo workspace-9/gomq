@@ -3,6 +3,7 @@ package push
 import (
   "context"
   "fmt"
+  "net/url"
 
   "github.com/exe-or-death/gomq"
   "github.com/exe-or-death/gomq/types"
@@ -28,9 +29,9 @@ func (p *Push) Name() string {
   return "PUSH"
 }
 
-func (p *Push) Connect(tp transport.Transport, addr string) error {
-  if _, ok := p.ConnectionHandles[addr]; ok {
-    return fmt.Errorf("%w: %s", types.ErrAlreadyConnected, addr)
+func (p *Push) Connect(tp transport.Transport, url *url.URL) error {
+  if _, ok := p.ConnectionHandles[url.String()]; ok {
+    return fmt.Errorf("%w: %s", types.ErrAlreadyConnected, url.String())
   }
 
   var queue chan zmtp.Message
@@ -39,7 +40,7 @@ func (p *Push) Connect(tp transport.Transport, addr string) error {
     p.Context,
     p.Mech,
     tp,
-    addr,
+    url,
     p.Config,
     p.EventBus,
     func(ctx context.Context, s zmtp.Socket) error {
@@ -55,32 +56,32 @@ func (p *Push) Connect(tp transport.Transport, addr string) error {
   queue = make(chan zmtp.Message, p.Config.QueueLen())
   wc := socketutil.NewWaitCloser[struct{}](p.Context)
   go PullFromWritePoint(&wc, queue, p.WritePoint)
-  p.ConnectionDrivers[addr] = driver
-  p.ConnectionHandles[addr] = wc
+  p.ConnectionDrivers[url.String()] = driver
+  p.ConnectionHandles[url.String()] = wc
   go driver.Run()
   return nil
 }
 
-func (p *Push) Disconnect(addr string) error {
-  driver, ok := p.ConnectionDrivers[addr]
+func (p *Push) Disconnect(url *url.URL) error {
+  driver, ok := p.ConnectionDrivers[url.String()]
   if !ok {
-    return fmt.Errorf("%w to %s", types.ErrNeverConnected, addr)
+    return fmt.Errorf("%w to %s", types.ErrNeverConnected, url.String())
   }
   
-  delete(p.ConnectionDrivers, addr)
+  delete(p.ConnectionDrivers, url.String())
   err := driver.Close()
-  p.ConnectionHandles[addr].Close()
-  delete (p.ConnectionHandles, addr)
+  p.ConnectionHandles[url.String()].Close()
+  delete (p.ConnectionHandles, url.String())
   return err
 }
 
-func (p *Push) Bind(tp transport.Transport, addr string) error {
+func (p *Push) Bind(tp transport.Transport, url *url.URL) error {
   driver := &socketutil.BindDriver{}
   driver.Setup(
     p.Context,
     tp,
     p.Mech,
-    addr,
+    url,
     func(ctx context.Context, s zmtp.Socket) error {
       queue := make(chan zmtp.Message, p.Config.QueueLen())
       wc := socketutil.NewWaitCloser[struct{}](p.Context)
@@ -95,23 +96,24 @@ func (p *Push) Bind(tp transport.Transport, addr string) error {
   if err := driver.TryBind(); err != nil {
     return err
   }
-  p.BindDrivers[addr] = driver
+  p.BindDrivers[url.String()] = driver
   go driver.Run()
   return nil
 }
 
-func (p *Push) Unbind(addr string) error {
-  driver, ok := p.BindDrivers[addr]
+func (p *Push) Unbind(url *url.URL) error {
+  driver, ok := p.BindDrivers[url.String()]
   if !ok {
-    return fmt.Errorf("%w to %s", types.ErrNeverBound, addr)
+    return fmt.Errorf("%w to %s", types.ErrNeverBound, url.String())
   }
   
-  delete(p.BindDrivers, addr)
+  delete(p.BindDrivers, url.String())
   err := driver.Close()
   return err
 }
 
 func PullFromWritePoint(wc *socketutil.WaitCloser[struct{}], push chan<- zmtp.Message, writePoint chan []zmtp.Message) {
+  defer wc.Finish(struct{}{})
   for {
     select {
     case message := <- writePoint:

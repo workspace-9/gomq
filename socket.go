@@ -22,7 +22,7 @@ func (s Socket) Connect(addr string) error {
     return ErrTransportNotFound
   }
 
-  if err := s.driver.Connect(tp, url.Host); err != nil {
+  if err := s.driver.Connect(tp, url); err != nil {
     return err
   }
 
@@ -48,7 +48,7 @@ func (s Socket) Bind(addr string) error {
     return ErrTransportNotFound
   }
 
-  if err := s.driver.Bind(tp, url.Host); err != nil {
+  if err := s.driver.Bind(tp, url); err != nil {
     return err
   }
 
@@ -85,9 +85,17 @@ func (s Socket) Close() error {
 }
 
 func (s Socket) Disconnect(addr string) error {
-  return s.driver.Disconnect(addr)
+  url, err := url.Parse(addr)
+  if err != nil {
+    return err
+  }
+  return s.driver.Disconnect(url)
 }
 
 func (s Socket) Unbind(addr string) error {
-  return s.driver.Unbind(addr)
+  url, err := url.Parse(addr)
+  if err != nil {
+    return err
+  }
+  return s.driver.Unbind(url)
 }

@@ -3,6 +3,7 @@ package socketutil
 import (
   "context"
   "net"
+  "net/url"
 
   "github.com/exe-or-death/gomq"
   "github.com/exe-or-death/gomq/zmtp"
@@ -14,30 +15,30 @@ type BindDriver struct {
   cancel context.CancelFunc
   transport transport.Transport
   mechanism zmtp.Mechanism
-  address string
+  url *url.URL
   handler SocketHandler
   eventBus gomq.EventBus
   meta MetadataProvider
   metaHandler MetadataHandler
   ln net.Listener
   done chan struct{}
-  final error
 }
 
 func (b *BindDriver) Close() error {
   b.cancel()
+  var err error
   if b.ln != nil {
-    b.ln.Close()
+    err = b.ln.Close()
   }
   <-b.done
-  return b.final
+  return err
 }
 
 func (b *BindDriver) Setup(
   ctx context.Context,
   tp transport.Transport,
   mech zmtp.Mechanism,
-  addr string,
+  url *url.URL,
   handler SocketHandler,
   eventBus gomq.EventBus,
   meta MetadataProvider,
@@ -48,7 +49,7 @@ func (b *BindDriver) Setup(
   b.cancel = cancel
   b.transport = tp
   b.mechanism = mech
-  b.address = addr
+  b.url = url
   b.handler = handler
   b.eventBus = eventBus
   b.meta = meta
@@ -57,7 +58,7 @@ func (b *BindDriver) Setup(
 } 
 
 func (b *BindDriver) TryBind() error {
-  listener, err := b.transport.Bind(b.address)
+  listener, err := b.transport.Bind(b.url)
   if err != nil {
     return err
   }
@@ -66,7 +67,7 @@ func (b *BindDriver) TryBind() error {
 }
 
 func (b *BindDriver) Run() {
-  b.final = b.run()
+  b.run()
   b.cancel()
   close(b.done)
 }
@@ -87,7 +88,7 @@ func (b *BindDriver) run() error {
     if err != nil {
       b.eventBus.Post(gomq.Event{
         gomq.EventTypeAcceptFailed,
-        b.address,
+        b.url.String(),
         "",
         err.Error(),
       })

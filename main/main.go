@@ -35,7 +35,7 @@ func runPullSock() {
     }
 
     for _, part := range msg {
-      log.Println(string(part))
+      log.Println("RX:", string(part))
     }
   }
 }
@@ -55,16 +55,14 @@ func runPushSock() {
   if err := sock.Send([][]byte{[]byte("hola!")}); err != nil {
     log.Fatalf("Failed sending: %s", err.Error())
   }
-  sock.Close()
 
-  time.Sleep(time.Second)
-  sock, err = ctx.NewSocket("PUSH", "NULL")
-  if err != nil {
-    log.Fatalf("Failed creating socket: %s", err.Error())
+  if err := sock.Disconnect("tcp://127.0.0.1:52849"); err != nil {
+    log.Fatalf("Failed disconnecting: %s", err.Error())
   }
 
+  time.Sleep(time.Second)
   if err := sock.Connect("tcp://127.0.0.1:52849"); err != nil {
-    log.Fatalf("Failed binding to local endpoint: %s", err.Error())
+    log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
   }
 
   if err := sock.Send([][]byte{[]byte("hola!")}); err != nil {

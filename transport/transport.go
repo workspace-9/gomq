@@ -4,6 +4,7 @@ import (
 	"context"
   "fmt"
 	"net"
+	"net/url"
 )
 
 // Transport represents a method of generating sockets.
@@ -12,12 +13,12 @@ type Transport interface {
   Name() string
 
 	// Bind creates an Listener if successful.
-	Bind(addr string) (net.Listener, error)
+	Bind(url *url.URL) (net.Listener, error)
 
 	// Connect to a remote address.
 	Connect(
 		ctx context.Context,
-		addr string,
+    url *url.URL,
 	) (conn net.Conn, fatal bool, err error)
 }
 
