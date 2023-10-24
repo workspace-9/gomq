@@ -18,9 +18,10 @@ type Pull struct {
   *gomq.Config
   Mech zmtp.Mechanism
   ConnectionDrivers map[string]*socketutil.ConnectionDriver
+  ConnectionHandles map[string]socketutil.WaitCloser[struct{}]
   BindDrivers map[string]*socketutil.BindDriver
+  ReadPoint chan []zmtp.Message
   EventBus gomq.EventBus
-  Buffer chan []zmtp.Message
 }
 
 func (p *Pull) Name() string {
@@ -28,6 +29,11 @@ func (p *Pull) Name() string {
 }
 
 func (p *Pull) Connect(tp transport.Transport, addr string) error {
+  if _, ok := p.ConnectionHandles[addr]; ok {
+    return fmt.Errorf("%w: %s", types.ErrAlreadyConnected, addr)
+  }
+
+  var queue chan zmtp.Message
   driver := &socketutil.ConnectionDriver{}
   driver.Setup(
     p.Context,
@@ -36,7 +42,9 @@ func (p *Pull) Connect(tp transport.Transport, addr string) error {
     addr,
     p.Config,
     p.EventBus,
-    p.HandleSock,
+    func(ctx context.Context, s zmtp.Socket) error {
+      return HandleSock(ctx, s, queue)
+    },
     p.Meta,
     p.MetaHandler,
   )
@@ -44,20 +52,33 @@ func (p *Pull) Connect(tp transport.Transport, addr string) error {
   if err != nil && fatal {
     return err
   }
-  go driver.Run()
+  queue = make(chan zmtp.Message, p.Config.QueueLen())
+  wc := socketutil.NewWaitCloser[struct{}](p.Context)
+  go PushIntoReadPoint(&wc, queue, p.ReadPoint)
   p.ConnectionDrivers[addr] = driver
-
+  p.ConnectionHandles[addr] = wc
+  go driver.Run()
   return nil
 }
 
 func (p *Pull) Bind(tp transport.Transport, addr string) error {
+  if _, ok := p.BindDrivers[addr]; ok {
+    return fmt.Errorf("%w: %s", types.ErrAlreadyBound, addr)
+  }
+
   driver := &socketutil.BindDriver{}
   driver.Setup(
     p.Context,
     tp,
     p.Mech,
     addr,
-    p.HandleSock,
+    func(ctx context.Context, s zmtp.Socket) error {
+      queue := make(chan zmtp.Message, p.Config.QueueLen())
+      wc := socketutil.NewWaitCloser[struct{}](p.Context)
+      defer wc.Finish(struct{}{})
+      go PushIntoReadPoint(&wc, queue, p.ReadPoint)
+      return HandleSock(ctx, s, queue)
+    },
     p.EventBus,
     p.Meta,
     p.MetaHandler,
@@ -70,22 +91,43 @@ func (p *Pull) Bind(tp transport.Transport, addr string) error {
   return nil
 }
 
-func (p *Pull) HandleSock(sock zmtp.Socket) (fatal bool, err error) {
-  builtMessage := make([]zmtp.Message, 0)
+func PushIntoReadPoint(wc *socketutil.WaitCloser[struct{}], pull <-chan zmtp.Message, readPoint chan []zmtp.Message) {
+  defer wc.Finish(struct{}{})
+  built := make([]zmtp.Message, 0)
+  for {
+    select {
+    case part := <-pull:
+      built = append(built, part)
+      if !part.More {
+        select {
+        case readPoint <- built:
+          built = make([]zmtp.Message, 0)
+        case <-wc.Done():
+          return
+        }
+      }
+    case <-wc.Done():
+      return
+    }
+  }
+}
+
+func HandleSock(ctx context.Context, sock zmtp.Socket, queue chan<- zmtp.Message) (err error) {
   for {
     next, err := sock.Read()
     if err != nil {
-      return false, err
+      return err
     }
 
     if !next.IsMessage {
       continue
     }
 
-    builtMessage = append(builtMessage, *next.Message)
     if !next.Message.More {
-      p.Buffer <- builtMessage
-      builtMessage = make([]zmtp.Message, 0)
+      select {
+      case queue <- *next.Message:
+      case <- ctx.Done():
+      }
     }
   }
 }
@@ -115,9 +157,9 @@ func (p *Pull) Send([]zmtp.Message) error {
 
 func (p *Pull) Recv() ([]zmtp.Message, error) {
   select {
-  case data := <-p.Buffer:
-    return data, nil
-  case <- p.Context.Done():
+  case msg := <- p.ReadPoint:
+    return msg, nil
+  case <-p.Context.Done():
     return nil, p.Context.Err()
   }
 }

@@ -9,7 +9,7 @@ import (
   "github.com/exe-or-death/gomq/zmtp"
 )
 
-type SocketHandler func(zmtp.Socket) (fatal bool, err error)
+type SocketHandler func(context.Context, zmtp.Socket) error
 
 type MetadataProvider func() zmtp.Metadata
 
@@ -169,18 +169,14 @@ func (c *ConnectionDriver) run() error {
 
     if c.socket == nil {
       connectStart := time.Now()
-      fatal, err := c.TryConnect()
+      _, err := c.TryConnect()
       if err != nil {
-        if fatal {
-          return err
-        }
-
         time.Sleep(c.config.ReconnectTimeout() - time.Since(connectStart))
         continue
       }
     }
 
-    fatal, err := c.handler(c.socket)
+    err := c.handler(c.ctx, c.socket)
     if err != nil {
       c.eventBus.Post(gomq.Event{
         gomq.EventTypeDisconnected, 
@@ -188,10 +184,6 @@ func (c *ConnectionDriver) run() error {
         transport.BuildURL(c.socket.Net().RemoteAddr(), c.transport),
         err.Error(),
       })
-
-      if fatal {
-        return err
-      }
       time.Sleep(c.config.ReconnectTimeout())
       c.socket = nil
     }

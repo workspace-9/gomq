@@ -7,3 +7,27 @@ func (operationNotPermitted) Error() string {
 }
 
 var ErrOperationNotPermitted operationNotPermitted
+
+type allPeersBusy struct {}
+
+func (allPeersBusy) Error() string {
+  return "All peers busy"
+}
+
+var ErrAllPeersBusy allPeersBusy
+
+type alreadyConnected struct {}
+
+func (alreadyConnected) Error() string {
+  return "Already connected"
+}
+
+var ErrAlreadyConnected alreadyConnected
+
+type alreadyBound struct {}
+
+func (alreadyBound) Error() string {
+  return "Already bound"
+}
+
+var ErrAlreadyBound alreadyBound

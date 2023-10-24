@@ -79,6 +79,10 @@ func (b *BindDriver) run() error {
   }
 
   for {
+    if b.ctx.Err() != nil {
+      return b.ctx.Err()
+    }
+
     conn, err := b.ln.Accept()
     if err != nil {
       b.eventBus.Post(gomq.Event{
@@ -87,7 +91,7 @@ func (b *BindDriver) run() error {
         "",
         err.Error(),
       })
-      return err
+      continue
     }
 
     b.eventBus.Post(gomq.Event{
@@ -164,7 +168,7 @@ func (b *BindDriver) handleConn(conn net.Conn) {
     "",
   })
 
-  b.handler(sock)
+  b.handler(b.ctx, sock)
   b.eventBus.Post(gomq.Event{
     gomq.EventTypeDisconnected,
     transport.BuildURL(conn.LocalAddr(), b.transport),

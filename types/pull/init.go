@@ -19,9 +19,10 @@ func init() {
         Config: conf,
         Mech: mech,
         ConnectionDrivers: map[string]*socketutil.ConnectionDriver{},
+        ConnectionHandles: map[string]socketutil.WaitCloser[struct{}]{},
         BindDrivers: map[string]*socketutil.BindDriver{},
+        ReadPoint: make(chan []zmtp.Message),
         EventBus: eventBus,
-        Buffer: make(chan []zmtp.Message, conf.QueueLen()),
       }, nil
     },
   )

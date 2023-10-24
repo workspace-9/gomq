@@ -1,7 +1,6 @@
 package push
 
 import (
-  "sync"
   "context"
   "fmt"
 
@@ -10,25 +9,19 @@ import (
   "github.com/exe-or-death/gomq/socketutil"
   "github.com/exe-or-death/gomq/transport"
   "github.com/exe-or-death/gomq/zmtp"
-  wk8 "github.com/wk8/go-ordered-map/v2"
 )
 
 // Push implements the zmq push socket.
 type Push struct {
-  sync.RWMutex
   context.Context
   Cancel context.CancelFunc
   *gomq.Config
   Mech zmtp.Mechanism
   ConnectionDrivers map[string]*socketutil.ConnectionDriver
   BindDrivers map[string]*socketutil.BindDriver
-  Queues struct {
-    *wk8.OrderedMap[int64, chan[]zmtp.Message]
-    Idx int64
-  }
+  ConnectionHandles map[string]socketutil.WaitCloser[struct{}]
   EventBus gomq.EventBus
-  Buffer chan []zmtp.Message
-  LastPush *wk8.Pair[int64, chan[]zmtp.Message]
+  WritePoint chan []zmtp.Message
 }
 
 func (p *Push) Name() string {
@@ -36,9 +29,11 @@ func (p *Push) Name() string {
 }
 
 func (p *Push) Connect(tp transport.Transport, addr string) error {
-  p.Lock()
-  defer p.Unlock()
-  var queue chan []zmtp.Message
+  if _, ok := p.ConnectionHandles[addr]; ok {
+    return fmt.Errorf("%w: %s", types.ErrAlreadyConnected, addr)
+  }
+
+  var queue chan zmtp.Message
   driver := &socketutil.ConnectionDriver{}
   driver.Setup(
     p.Context,
@@ -47,8 +42,8 @@ func (p *Push) Connect(tp transport.Transport, addr string) error {
     addr,
     p.Config,
     p.EventBus,
-    func(s zmtp.Socket) (fatal bool, err error) {
-      return p.HandleSock(s, queue)
+    func(ctx context.Context, s zmtp.Socket) error {
+      return HandleSock(ctx, s, queue)
     },
     p.Meta,
     p.MetaHandler,
@@ -57,42 +52,28 @@ func (p *Push) Connect(tp transport.Transport, addr string) error {
   if err != nil && fatal {
     return err
   }
-  var idx int64
-  queue, idx = p.NewConnQueue()
+  queue = make(chan zmtp.Message, p.Config.QueueLen())
+  wc := socketutil.NewWaitCloser[struct{}](p.Context)
+  go PullFromWritePoint(&wc, queue, p.WritePoint)
   p.ConnectionDrivers[addr] = driver
-  go func() {
-    driver.Run()
-    driver.Close()
-    p.Lock()
-    delete(p.ConnectionDrivers, addr)
-    p.Queues.Delete(idx)
-    p.Unlock()
-  }()
-
+  p.ConnectionHandles[addr] = wc
+  go driver.Run()
   return nil
 }
 
 func (p *Push) Bind(tp transport.Transport, addr string) error {
-  p.Lock()
-  defer p.Unlock()
   driver := &socketutil.BindDriver{}
   driver.Setup(
     p.Context,
     tp,
     p.Mech,
     addr,
-    func(s zmtp.Socket) (fatal bool, err error) {
-      p.Lock()
-      queue, idx := p.NewConnQueue()
-      p.Unlock()
-
-      defer func() {
-        p.Lock()
-        p.Queues.Delete(idx)
-        p.Unlock()
-      }()
-
-      return p.HandleSock(s, queue)
+    func(ctx context.Context, s zmtp.Socket) error {
+      queue := make(chan zmtp.Message, p.Config.QueueLen())
+      wc := socketutil.NewWaitCloser[struct{}](p.Context)
+      defer wc.Finish(struct{}{})
+      go PullFromWritePoint(&wc, queue, p.WritePoint)
+      return HandleSock(ctx, s, queue)
     },
     p.EventBus,
     p.Meta,
@@ -102,37 +83,38 @@ func (p *Push) Bind(tp transport.Transport, addr string) error {
     return err
   }
   p.BindDrivers[addr] = driver
-  go func() {
-    driver.Run()
-    driver.Close()
-    p.Lock()
-    delete(p.BindDrivers, addr)
-    p.Unlock()
-  }()
+  go driver.Run()
   return nil
 }
 
-func (p *Push) NewConnQueue() (queue chan []zmtp.Message, idx int64) {
-  idx = p.Queues.Idx
-  p.Queues.Idx++
-  queue = make(chan []zmtp.Message)
-  p.Queues.Set(idx, queue)
-  return queue, idx
-}
-
-func (p *Push) HandleSock(sock zmtp.Socket, queue chan[]zmtp.Message) (fatal bool, err error) {
-  for message := range queue {
-    for idx, datum := range message {
-      if err := sock.SendMessage(zmtp.Message{
-        More: idx != len(message) - 1, Body: datum.Body,
-      }); err != nil {
-        return false, err
+func PullFromWritePoint(wc *socketutil.WaitCloser[struct{}], push chan<- zmtp.Message, writePoint chan []zmtp.Message) {
+  for {
+    select {
+    case message := <- writePoint:
+      for _, part := range message {
+        select {
+        case push <- part:
+        case <- wc.Done():
+          return
+        }
       }
-
+    case <-wc.Done():
+      return
     }
   }
+}
 
-  return false, nil
+func HandleSock(ctx context.Context, sock zmtp.Socket, queue <-chan zmtp.Message) (err error) {
+  for {
+    select {
+    case msg := <-queue:
+      if err := sock.SendMessage(msg); err != nil {
+        return err
+      }
+    case <-ctx.Done():
+      return ctx.Err()
+    }
+  }
 }
 
 func (p *Push) Meta() zmtp.Metadata {
@@ -155,55 +137,13 @@ func (p *Push) MetaHandler(meta zmtp.Metadata) error {
 }
 
 func (p *Push) Send(data []zmtp.Message) error {
-  // We only need an rlock because we aren't manipulating the maps.
-  // The mutex only protects the map, nothing else is guaranteed by the
-  // spec as the socket itself need not be thread safe.
-  p.RLock()
-  defer p.RUnlock()
-
-  if p.Queues.Len() == 0 {
-    return ErrNoPeers
+  select {
+  case p.WritePoint <- data:
+    return nil
+  case <-p.Context.Done():
+    return p.Context.Err()
   }
-
-  // Try to push to each queue in a round robin fashion.
-  start := p.LastPush
-  var cur *wk8.Pair[int64, chan[]zmtp.Message]
-  if start == nil {
-    cur = p.Queues.Oldest()
-  } else {
-    cur = start.Next()
-  }
-  for cur != start {
-    if cur == nil {
-      cur = p.Queues.Oldest()
-    }
-
-    select {
-    case cur.Value <- data:
-      p.LastPush = cur
-      return nil
-    default:
-    }
-  }
-
-  return ErrAllPeersBusy
 }
-
-type allPeersBusy struct {}
-
-func (allPeersBusy) Error() string {
-  return "All peers busy"
-}
-
-var ErrAllPeersBusy allPeersBusy
-
-type noPeers struct {}
-
-func (noPeers) Error() string {
-  return "No peers"
-}
-
-var ErrNoPeers noPeers
 
 func (p *Push) Recv() ([]zmtp.Message, error) {
   return nil, types.ErrOperationNotPermitted
