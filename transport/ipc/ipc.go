@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"os"
 
 	"github.com/exe-or-death/gomq"
 	"github.com/exe-or-death/gomq/transport"
@@ -11,17 +12,18 @@ import (
 
 func init() {
 	gomq.RegisterTransport("ipc", func() transport.Transport {
-		return IPCTransport{}
+		return Transport{}
 	})
 }
 
-type IPCTransport struct{}
+type Transport struct{}
 
-func (IPCTransport) Name() string {
+func (Transport) Name() string {
 	return "ipc"
 }
 
-func (IPCTransport) Bind(url *url.URL) (net.Listener, error) {
+func (Transport) Bind(url *url.URL) (net.Listener, error) {
+	os.Remove(url.Host + url.Path)
 	unixAddr, err := net.ResolveUnixAddr("unix", url.Host+url.Path)
 	if err != nil {
 		return nil, err
@@ -31,7 +33,7 @@ func (IPCTransport) Bind(url *url.URL) (net.Listener, error) {
 }
 
 // Connect to a unix address.
-func (IPCTransport) Connect(
+func (Transport) Connect(
 	ctx context.Context,
 	url *url.URL,
 ) (

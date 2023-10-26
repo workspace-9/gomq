@@ -11,20 +11,20 @@ import (
 
 func init() {
 	gomq.RegisterTransport("tcp", func() transport.Transport {
-		return TCPTransport{}
+		return Transport{}
 	})
 }
 
-// TCPTransport implements transport.Transport
-type TCPTransport struct{}
+// Transport implements transport.Transport
+type Transport struct{}
 
 // Name of the transport is tcp.
-func (TCPTransport) Name() string {
+func (Transport) Name() string {
 	return "tcp"
 }
 
 // Bind to a tcp address.
-func (TCPTransport) Bind(url *url.URL) (net.Listener, error) {
+func (Transport) Bind(url *url.URL) (net.Listener, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (TCPTransport) Bind(url *url.URL) (net.Listener, error) {
 }
 
 // Connect to a tcp address.
-func (TCPTransport) Connect(
+func (Transport) Connect(
 	ctx context.Context,
 	url *url.URL,
 ) (
