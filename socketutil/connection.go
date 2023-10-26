@@ -17,18 +17,19 @@ type MetadataProvider func() zmtp.Metadata
 type MetadataHandler func(zmtp.Metadata) error
 
 type ConnectionDriver struct {
-	ctx         context.Context
-	mechanism   zmtp.Mechanism
-	socket      zmtp.Socket
-	transport   transport.Transport
-	url         *url.URL
-	config      *gomq.Config
-	eventBus    gomq.EventBus
-	handler     SocketHandler
-	meta        MetadataProvider
-	metaHandler MetadataHandler
-	cancelFunc  context.CancelFunc
-	done        chan struct{}
+	ctx                context.Context
+	mechanism          zmtp.Mechanism
+	socket             zmtp.Socket
+	transport          transport.Transport
+	url                *url.URL
+	config             *gomq.Config
+	eventBus           gomq.EventBus
+	handler            SocketHandler
+	meta               MetadataProvider
+	metaHandler        MetadataHandler
+	cancelFunc         context.CancelFunc
+	done               chan struct{}
+	lastConnectAttempt time.Time
 }
 
 type ConnectionDriverHandle struct {
@@ -47,6 +48,7 @@ func (c *ConnectionDriver) Close() error {
 }
 
 func (c *ConnectionDriver) TryConnect() (fatal bool, err error) {
+	c.lastConnectAttempt = time.Now()
 	ctx, cancel := context.WithTimeout(c.ctx, c.config.ConnectTimeout())
 	conn, fatal, err := c.transport.Connect(ctx, c.url)
 	cancel()
@@ -169,10 +171,12 @@ func (c *ConnectionDriver) run() error {
 		}
 
 		if c.socket == nil {
-			connectStart := time.Now()
+			if !c.lastConnectAttempt.IsZero() {
+				time.Sleep(c.config.ReconnectTimeout() - time.Since(c.lastConnectAttempt))
+			}
 			_, err := c.TryConnect()
 			if err != nil {
-				time.Sleep(c.config.ReconnectTimeout() - time.Since(connectStart))
+				time.Sleep(c.config.ReconnectTimeout() - time.Since(c.lastConnectAttempt))
 				continue
 			}
 		}
