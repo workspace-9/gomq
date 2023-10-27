@@ -54,18 +54,19 @@ func (t *Trie[T]) Put(key string, value T) {
 	}
 }
 
+// Remove a key value pair from the trie.
 func (t *Trie[T]) Remove(key string, value T) bool {
-	return t.removeParent(key, value, nil)
+	return t.removeWithParentRef(key, value, nil)
 }
 
-func (t *Trie[T]) removeParent(key string, value T, parent *Trie[T]) bool {
+func (t *Trie[T]) removeWithParentRef(key string, value T, parent *Trie[T]) bool {
 	if key == t.Key {
 		_, ok := t.Values[value]
 		if ok {
 			delete(t.Values, value)
 		}
 
-		if len(t.Values) == 0 {
+		if len(t.Values) == 0 && parent != nil {
 			delete(parent.Children, t.Key)
 			for _, child := range t.Children {
 				parent.Children[child.Key] = child
@@ -77,13 +78,14 @@ func (t *Trie[T]) removeParent(key string, value T, parent *Trie[T]) bool {
 
 	for childKey, child := range t.Children {
 		if strings.HasPrefix(key, childKey) {
-			return child.removeParent(key, value, t)
+			return child.removeWithParentRef(key, value, t)
 		}
 	}
 
 	return false
 }
 
+// Query the trie for all values whose keys prefix the query string.
 func (t *Trie[T]) Query(query string, visitFunc func(key string, value T)) {
 	if !strings.HasPrefix(query, t.Key) {
 		return
@@ -95,5 +97,6 @@ func (t *Trie[T]) Query(query string, visitFunc func(key string, value T)) {
 
 	for _, child := range t.Children {
 		child.Query(query, visitFunc)
+		return
 	}
 }
