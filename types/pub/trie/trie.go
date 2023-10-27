@@ -87,16 +87,14 @@ func (t *Trie[T]) removeWithParentRef(key string, value T, parent *Trie[T]) bool
 
 // Query the trie for all values whose keys prefix the query string.
 func (t *Trie[T]) Query(query string, visitFunc func(key string, value T)) {
-	if !strings.HasPrefix(query, t.Key) {
-		return
-	}
-
 	for value := range t.Values {
 		visitFunc(t.Key, value)
 	}
 
 	for _, child := range t.Children {
-		child.Query(query, visitFunc)
-		return
+		if strings.HasPrefix(query, child.Key) {
+			child.Query(query, visitFunc)
+			return
+		}
 	}
 }

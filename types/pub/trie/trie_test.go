@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestTrieBasic(t *testing.T) {
+func TestTrie(t *testing.T) {
 	trie := &trie.Trie[string]{}
 	trie.Put("", "a")
 	if err := ExpectStructure(`""`, trie); err != nil {
@@ -60,6 +60,26 @@ func TestTrieBasic(t *testing.T) {
 	expect = ExpectToVisit("a")
 	trie.Query("foo", expect.Visit)
 	if err := expect.Error(); err != nil {
+		t.Errorf(err.Error())
+	}
+
+	trie.Remove("", "a")
+	if err := ExpectStructure(`{"": {"foobar": 0, "baz": "bazfoo"}}`, trie); err != nil {
+		t.Errorf(err.Error())
+	}
+
+	trie.Remove("foobar", "c")
+	if err := ExpectStructure(`{"": {"baz": "bazfoo"}}`, trie); err != nil {
+		t.Errorf(err.Error())
+	}
+
+	trie.Remove("baz", "e")
+	if err := ExpectStructure(`{"": "bazfoo"}`, trie); err != nil {
+		t.Errorf(err.Error())
+	}
+
+	trie.Remove("bazfoo", "d")
+	if err := ExpectStructure(`""`, trie); err != nil {
 		t.Errorf(err.Error())
 	}
 }
@@ -131,13 +151,12 @@ type expectToVisit struct {
 }
 
 func (e expectToVisit) Visit(_ string, value string) {
-	fmt.Println(value)
 	e.visited[value] = e.visited[value] + 1
 }
 
 func (e expectToVisit) Error() error {
 	if len(e.expectations) != len(e.visited) {
-		return fmt.Errorf("Expected to visit %d unique values, got %d", len(e.expectations), len(e.visited))
+		return fmt.Errorf("Expected to visit %d unique values (%v), got %d (%v)", len(e.expectations), e.expectations, len(e.visited), e.visited)
 	}
 
 	for key, visitations := range e.visited {
