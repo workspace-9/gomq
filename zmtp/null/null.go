@@ -9,7 +9,7 @@ import (
 type Null struct{}
 
 func (Null) Name() string {
-	return "NULL"
+	return MechName
 }
 
 func (Null) Server() bool {
@@ -65,7 +65,17 @@ func (notReady) Error() string {
 
 var ErrNotReady notReady
 
-func (n Null) SetOption(string, string) {}
+type noOptions struct {}
+
+func (noOptions) Error() string {
+  return "No options on null sockets"
+}
+
+var ErrNoOptions noOptions
+
+func (n Null) SetOption(string, any) error {
+  return ErrNoOptions
+}
 
 type NullSocket struct {
 	net.Conn

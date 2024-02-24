@@ -19,7 +19,7 @@ type Mechanism interface {
 	Server() bool
 
 	// SetOption sets an option in the mechanism.
-	SetOption(option string, value string)
+	SetOption(option string, value any) error
 }
 
 // Socket.
