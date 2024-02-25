@@ -2,11 +2,13 @@ package curve
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/workspace-9/gomq/zmtp"
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/nacl/secretbox"
 )
@@ -76,6 +78,7 @@ func (c *Curve) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	return c.cli.Handshake(conn, meta)
 }
 
+// todo: check client nonce fmt
 func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	zmtp.Socket,
 	zmtp.Metadata,
@@ -103,6 +106,10 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	var nonce [24]byte
 	copy(nonce[:], []byte("CurveZMQHELLO---"))
 	copy(nonce[16:], cmd.Body[106:114])
+	cliNonceIdx := binary.BigEndian.Uint64(nonce[16:])
+	if cliNonceIdx != 1 {
+		return nil, nil, fmt.Errorf("Expected client nonce to be 1, got %d", cliNonceIdx)
+	}
 	out := make([]byte, 0, 64)
 	out, ok := box.Open(out, cmd.Body[114:], &nonce, &clientTransPubKey, &c.privKey)
 	if !ok {
@@ -119,7 +126,7 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 		}
 	}
 
-	pubTrans, secTrans, err := box.GenerateKey(rand.Reader)
+	preCookiePubTrans, preCookieSecTrans, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(fmt.Sprintf("Failed generating keys: %s", err))
 	}
@@ -131,7 +138,7 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 
 	var cookie [64]byte
 	copy(cookie[:], clientTransPubKey[:])
-	copy(cookie[32:], secTrans[:])
+	copy(cookie[32:], preCookieSecTrans[:])
 	_, cookieKey, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(fmt.Sprintf("Failed creaing cookie key: %s", err.Error()))
@@ -150,7 +157,7 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	copy(cookieData[:16], nonce[8:])
 
 	welcomeBox := make([]byte, 128)
-	copy(welcomeBox, pubTrans[:])
+	copy(welcomeBox, preCookiePubTrans[:])
 	copy(welcomeBox[32:], cookieData)
 	copy(nonce[:], "WELCOME-")
 	if n, err := rand.Read(nonce[8:]); err != nil || n != 16 {
@@ -169,10 +176,53 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	}
 	conn.SetDeadline(time.Time{})
 
-	fmt.Println(init)
-	panic("hi")
+	if init.Name != "INITIATE" {
+		return nil, nil, fmt.Errorf("Expected initiate command, got %s", init.Name)
+	}
 
-	return nil, nil, nil
+	if len(init.Body) < 248 {
+		return nil, nil, fmt.Errorf("Expected initiate command to be at least 248 bytes long, was %d", len(init.Body))
+	}
+
+	copy(nonce[:], []byte("COOKIE--"))
+	copy(nonce[8:], init.Body[:16])
+	clientCookieBox := init.Body[16:96]
+	clientCookieData := make([]byte, 0, 64)
+	clientCookieData, ok = secretbox.Open(clientCookieData, clientCookieBox, &nonce, cookieKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("Client sent invalid cookie")
+	}
+
+	var serverTransPubKey, serverTransSecKey [32]byte
+	copy(serverTransSecKey[:], clientCookieData[32:])
+	curve25519.ScalarBaseMult(&serverTransPubKey, &serverTransSecKey)
+
+	// second point to check client short nonce
+	copy(nonce[:], []byte("CurveZMQINITIATE"))
+	copy(nonce[16:], init.Body[96:104])
+	cliNonceIdx = binary.BigEndian.Uint64(nonce[16:])
+	if cliNonceIdx != 2 {
+		return nil, nil, fmt.Errorf("Expected client nonce to be 2, got %d", cliNonceIdx)
+	}
+	initBox := make([]byte, 0, len(init.Body)-120)
+	initBox, ok = box.Open(initBox, init.Body[104:], &nonce, &clientTransPubKey, &serverTransSecKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("Failed opening initiate box")
+	}
+
+	var clientPermPublicKey [32]byte
+	copy(clientPermPublicKey[:], initBox[:32])
+	vouch := initBox[32:128]
+	metaData := zmtp.Metadata(initBox[128:])
+	copy(nonce[:8], []byte("VOUCH---"))
+	copy(nonce[8:], vouch[:16])
+	vouchData := make([]byte, 0, 64)
+	vouchData, ok = box.Open(vouchData, vouch[16:], &nonce, &clientPermPublicKey, &serverTransSecKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("Failed opening vouch box")
+	}
+
+	return nil, metaData, nil
 
 	//hello, err := c.awaitHello(conn)
 	//if err != nil {
