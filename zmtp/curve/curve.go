@@ -94,7 +94,7 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	}
 
 	if len(cmd.Body) != 194 {
-		return nil, nil, fmt.Errorf("Invalid hello: expected length to be 194 bytes, got %d")
+		return nil, nil, fmt.Errorf("Invalid hello: expected length to be 194 bytes, got %d", len(cmd.Body))
 	}
 
 	if cmd.Body[0] != 1 || cmd.Body[1] != 0 {
@@ -222,28 +222,24 @@ func (c *CurveServer) Handshake(conn net.Conn, meta zmtp.Metadata) (
 		return nil, nil, fmt.Errorf("Failed opening vouch box")
 	}
 
-	return nil, metaData, nil
+	readyCmd := zmtp.Command{Name: "READY"}
+	copy(nonce[:16], "CurveZMQREADY---")
+	binary.BigEndian.AppendUint64(nonce[16:16], 1)
+	readyBody := make([]byte, len(meta)+16+8)
+	fmt.Println(len(meta))
+	meta.Properties(func(name, value string) { fmt.Println(name, value) })
+	metaData.Properties(func(name, value string) { fmt.Println(name, value) })
+	box.Seal(readyBody[8:8], meta, &nonce, &clientTransPubKey, &serverTransSecKey)
+	binary.BigEndian.AppendUint64(readyBody[0:0], 1)
+	fmt.Println(readyBody)
+	readyCmd.Body = readyBody
+	if _, err := readyCmd.WriteTo(conn); err != nil {
+		return nil, nil, fmt.Errorf("Failed writing ready command: %s", err.Error())
+	}
 
-	//hello, err := c.awaitHello(conn)
-	//if err != nil {
-	//  return nil, nil, err
-	//}
-
-	//if err := c.sendWelcome(conn, hello); err != nil {
-	//  return nil, nil, err
-	//}
-
-	//init, err := c.awaitInitiate(conn)
-	//if err != nil {
-	//  return nil, nil, err
-	//}
-
-	//if err := c.sendReady(conn, init); err != nil {
-	//  return err
-	//}
-
-	//// todo finish me!
-	//ret := CurveSocket{}
+	ret := &CurveSocket{nonceIdx: 2, peerNonceIdx: 2, isServ: true, Conn: conn}
+	box.Precompute(&ret.sharedKey, &clientTransPubKey, &serverTransSecKey)
+	return ret, metaData, nil
 }
 
 func (c *CurveClient) Handshake(conn net.Conn, meta zmtp.Metadata) (
@@ -353,14 +349,95 @@ func (c *Curve) SetupClient() {
 }
 
 type CurveSocket struct {
-	sharedKey        [32]byte
-	shortNonce       uint64
-	peerShortNonce   uint64
-	verifyShortNonce bool
+	sharedKey    [32]byte
+	nonceIdx     uint64
+	peerNonceIdx uint64
+	isServ       bool
 	net.Conn
 }
 
+func (c *CurveSocket) Read() (zmtp.CommandOrMessage, error) {
+	var ret zmtp.CommandOrMessage
+	if _, err := ret.ReadFrom(c.Conn); err != nil {
+		return ret, err
+	}
+
+	if ret.IsMessage {
+		return zmtp.CommandOrMessage{}, fmt.Errorf("Cannot send raw message on curve socket")
+	}
+
+	if ret.Command.Name != "MESSAGE" {
+		return ret, nil
+	}
+
+	if len(ret.Command.Body) < 25 {
+		return zmtp.CommandOrMessage{}, fmt.Errorf("Received invalid message, length must be at least 25, got %d", len(ret.Command.Body))
+	}
+
+	var nonce [24]byte
+	if c.isServ {
+		copy(nonce[:], []byte("CurveZMQMESSAGEC"))
+	} else {
+		copy(nonce[:], []byte("CurveZMQMESSAGES"))
+	}
+	shortNonce := binary.BigEndian.Uint64(ret.Command.Body[:8])
+	if shortNonce != c.peerNonceIdx+1 {
+		return zmtp.CommandOrMessage{}, fmt.Errorf("Peer used invalid nonce (expected %d, got %d)", c.peerNonceIdx+1, shortNonce)
+	}
+	c.peerNonceIdx++
+	copy(nonce[16:], ret.Command.Body[:8])
+	out := make([]byte, len(ret.Command.Body)-24)
+	out, ok := box.OpenAfterPrecomputation(out[0:0], ret.Command.Body[8:], &nonce, &c.sharedKey)
+	if !ok {
+		return zmtp.CommandOrMessage{}, fmt.Errorf("Failed opening message box")
+	}
+
+	return zmtp.CommandOrMessage{
+		IsMessage: true, Message: &zmtp.Message{
+			More: (out[0] & 0x1) == 0x1, Body: out[1:],
+		},
+	}, nil
+}
+
+func (c *CurveSocket) SendCommand(cmd zmtp.Command) error {
+	if cmd.Name != "ERROR" {
+		return fmt.Errorf("Expected error command, got %s", cmd.Name)
+	}
+
+	_, err := cmd.WriteTo(c.Conn)
+	return err
+}
+
+func (c *CurveSocket) SendMessage(msg zmtp.Message) error {
+	defer func() { c.nonceIdx++ }()
+	cmd := zmtp.Command{Name: "MESSAGE"}
+	body := make([]byte, 8+17+len(msg.Body))
+	binary.BigEndian.AppendUint64(body[0:0], c.nonceIdx)
+
+	var nonce [24]byte
+	if c.isServ {
+		copy(nonce[:], []byte("CurveZMQMESSAGES"))
+	} else {
+		copy(nonce[:], []byte("CurveZMQMESSAGEC"))
+	}
+	binary.BigEndian.AppendUint64(nonce[16:16], c.nonceIdx)
+	toSeal := make([]byte, 1+len(msg.Body))
+	if msg.More {
+		toSeal[0] = 0x1
+	}
+	copy(toSeal[1:], msg.Body)
+	box.SealAfterPrecomputation(body[8:8], toSeal, &nonce, &c.sharedKey)
+	cmd.Body = body
+	fmt.Println(len(cmd.Body), cmd.Body)
+	_, err := cmd.WriteTo(c.Conn)
+	return err
+}
+
+func (c *CurveSocket) Close() error {
+	return c.Conn.Close()
+}
+
 // Net returns the underlying net.Conn for the socket.
-func (n CurveSocket) Net() net.Conn {
+func (n *CurveSocket) Net() net.Conn {
 	return n.Conn
 }

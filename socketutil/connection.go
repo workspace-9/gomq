@@ -72,6 +72,7 @@ func (c *ConnectionDriver) TryConnect() (fatal bool, err error) {
 	greeting.SetVersionMajor(3)
 	greeting.SetVersionMinor(1)
 	greeting.SetMechanism(c.mechanism.Name())
+	greeting.SetServer(c.mechanism.Server())
 	if _, err := greeting.WriteTo(conn); err != nil {
 		c.eventBus.Post(gomq.Event{
 			gomq.EventTypeFailedGreeting,
