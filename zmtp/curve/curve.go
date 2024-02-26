@@ -11,10 +11,6 @@ type Curve struct {
 	cli  *CurveClient
 }
 
-type CurveClient struct {
-	pubKey, privKey, serverPubKey [32]byte
-}
-
 func (c *Curve) Name() string {
 	return MechName
 }
@@ -65,13 +61,4 @@ func (c *Curve) Handshake(conn net.Conn, meta zmtp.Metadata) (
 	}
 
 	return c.cli.Handshake(conn, meta)
-}
-
-func (c *CurveClient) Handshake(conn net.Conn, meta zmtp.Metadata) (
-	zmtp.Socket,
-	zmtp.Metadata,
-	error,
-) {
-	//hello := zmtp.Command{Name: "HELLO", Data: }
-	return nil, nil, nil
 }
