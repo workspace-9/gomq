@@ -48,7 +48,7 @@ func runPullSock() {
 func runPebbePullSock(
 	srvKey, pubKey, privKey string,
 ) {
-	sock, err := zmq4.NewSocket(zmq4.PULL)
+	sock, err := zmq4.NewSocket(zmq4.PUSH)
 	if err != nil {
 		log.Fatalf("Failed creating socket: %s", err.Error())
 	}
@@ -73,14 +73,9 @@ func runPebbePullSock(
 	log.Println("running server")
 
 	for idx := 0; idx < 2; idx++ {
-		msg, err := sock.RecvMessage(0)
-		if err != nil {
-			log.Printf("Failed receiving: %s", err.Error())
-		}
-
-		for _, part := range msg {
-			log.Println("RX:", idx, string(part))
-		}
+		sock.SendMessage("HI", "omg")
+		sock.SendMessage("woaw")
+		sock.SendMessage("wwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaow")
 	}
 }
 
@@ -91,7 +86,7 @@ func runPushSock(
 
 	time.Sleep(time.Second)
 	ctx := gomq.NewContext(context.Background())
-	sock, err := ctx.NewSocket("PUSH", "CURVE")
+	sock, err := ctx.NewSocket("PULL", "CURVE")
 	if err != nil {
 		log.Fatalf("Failed creating socket: %s", err.Error())
 	}
@@ -112,12 +107,16 @@ func runPushSock(
 		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
 	}
 
-	log.Println("now!!!")
-	time.Sleep(time.Second * 5)
-	if err := sock.Send([][]byte{[]byte("hhola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!ola!"), []byte("fellas")}); err != nil {
-		log.Fatalf("Failed sending: %s", err.Error())
+	for idx := 0; idx < 6; idx++ {
+		data, err := sock.Recv()
+		if err != nil {
+			panic(err)
+		}
+		for idx, datum := range data {
+			log.Println(idx, string(datum))
+		}
 	}
-	time.Sleep(time.Second)
+
 	sock.Close()
 }
 

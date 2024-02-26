@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"unsafe"
 
 	"github.com/workspace-9/gomq/zmtp"
 	"golang.org/x/crypto/nacl/box"
@@ -24,42 +25,70 @@ func (c *CurveSocket) Read() (zmtp.CommandOrMessage, error) {
 		return ret, err
 	}
 
-	//fixme
 	if ret.IsMessage {
-		return zmtp.CommandOrMessage{}, fmt.Errorf("Cannot send raw message on curve socket")
+		fmt.Println("ismessage")
+		return c.processMessage(ret.Message.Body)
 	}
 
-	if ret.Command.Name != "MESSAGE" {
-		return ret, nil
+	if ret.Command.Name != "ERROR" {
+		return ret, fmt.Errorf("Received unknown command: %s", ret.Command.Name)
 	}
 
-	if len(ret.Command.Body) < 25 {
-		return zmtp.CommandOrMessage{}, fmt.Errorf("Received invalid message, length must be at least 25, got %d", len(ret.Command.Body))
+	return ret, fmt.Errorf("Peer sent error: %s", string(ret.Command.Body))
+}
+
+func (c *CurveSocket) processMessage(body []byte) (ret zmtp.CommandOrMessage, err error) {
+	fmt.Println("here!!!")
+	if len(body) < 33 {
+		err = fmt.Errorf("Expected body to be at least  bytes, got %d", len(body))
+		return
 	}
 
-	var nonce [24]byte
+	fmt.Println("here2")
+	if body[0] != 7 {
+		err = fmt.Errorf("Expected message command name to have 7 bytes, got %d", body[0])
+		return
+	}
+
+	fmt.Println("here3")
+	nameStr := unsafe.String(&body[1], 7)
+	if nameStr != "MESSAGE" {
+		err = fmt.Errorf("Expected command name to be MESSAGE, got %s", nameStr)
+		return
+	}
+
+	fmt.Println("here4")
+	shortNonce := binary.BigEndian.Uint64(body[8:])
+	var nonce Nonce
+	fmt.Println("here5")
 	if c.isServ {
-		copy(nonce[:], []byte("CurveZMQMESSAGEC"))
+		fmt.Println("here6")
+		nonce.Short("CurveZMQMESSAGEC", shortNonce)
 	} else {
-		copy(nonce[:], []byte("CurveZMQMESSAGES"))
+		fmt.Println("here7")
+		nonce.Short("CurveZMQMESSAGES", shortNonce)
 	}
-	shortNonce := binary.BigEndian.Uint64(ret.Command.Body[:8])
+	fmt.Println("here8")
 	if shortNonce != c.peerNonceIdx+1 {
 		return zmtp.CommandOrMessage{}, fmt.Errorf("Peer used invalid nonce (expected %d, got %d)", c.peerNonceIdx+1, shortNonce)
 	}
 	c.peerNonceIdx++
-	copy(nonce[16:], ret.Command.Body[:8])
-	out := make([]byte, len(ret.Command.Body)-24)
-	out, ok := box.OpenAfterPrecomputation(out[0:0], ret.Command.Body[8:], &nonce, &c.sharedKey)
+	copy(nonce[16:], body[8:])
+	out := make([]byte, len(body)-32)
+	fmt.Println("here9")
+	out, ok := box.OpenAfterPrecomputation(out[0:0], body[16:], nonce.N(), &c.sharedKey)
 	if !ok {
+		fmt.Println("here9")
 		return zmtp.CommandOrMessage{}, fmt.Errorf("Failed opening message box")
 	}
 
-	return zmtp.CommandOrMessage{
-		IsMessage: true, Message: &zmtp.Message{
-			More: (out[0] & 0x1) == 0x1, Body: out[1:],
-		},
-	}, nil
+	fmt.Println("herea")
+	ret.IsMessage = true
+	ret.Message = &zmtp.Message{
+		More: (out[0] & 0x1) == 1, Body: out[1:],
+	}
+	fmt.Println(ret)
+	return ret, nil
 }
 
 func (c *CurveSocket) SendCommand(cmd zmtp.Command) error {
