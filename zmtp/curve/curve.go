@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -428,9 +429,41 @@ func (c *CurveSocket) SendMessage(msg zmtp.Message) error {
 	copy(toSeal[1:], msg.Body)
 	box.SealAfterPrecomputation(body[8:8], toSeal, &nonce, &c.sharedKey)
 	cmd.Body = body
-	fmt.Println(len(cmd.Body), cmd.Body)
-	_, err := cmd.WriteTo(c.Conn)
+	_, err := cmd.WriteTo(&overrideFirstByteWriter{
+		f: func(old byte) byte {
+			return old - 4
+		},
+		writtenFirstByte: false,
+		Writer:           c.Conn,
+	})
 	return err
+}
+
+type overrideFirstByteWriter struct {
+	f                func(old byte) byte
+	writtenFirstByte bool
+	io.Writer
+}
+
+func (w *overrideFirstByteWriter) Write(p []byte) (n int, err error) {
+	if w.writtenFirstByte {
+		return w.Writer.Write(p)
+	}
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+	var firstByte [1]byte
+	firstByte[0] = w.f(p[0])
+	_, err = w.Writer.Write(firstByte[:])
+	if err != nil {
+		return 0, err
+	}
+	w.writtenFirstByte = true
+
+	n, err = w.Writer.Write(p[1:])
+	n++
+	return
 }
 
 func (c *CurveSocket) Close() error {

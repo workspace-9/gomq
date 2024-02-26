@@ -112,11 +112,29 @@ func runPushSock(
 		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
 	}
 
-	if err := sock.Send([][]byte{[]byte("hola!"), []byte("senor!")}); err != nil {
+	log.Println("now!!!")
+	time.Sleep(time.Second * 5)
+	if err := sock.Send([][]byte{[]byte("hhola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!ola!"), []byte("fellas")}); err != nil {
 		log.Fatalf("Failed sending: %s", err.Error())
 	}
+	time.Sleep(time.Second)
+	sock.Close()
+}
 
-	if err := sock.Send([][]byte{[]byte("hola!")}); err != nil {
+func runPebbePushSock(srvPub, srvPriv string) {
+	sock, err := zmq4.NewSocket(zmq4.PUSH)
+	if err != nil {
+		panic(err)
+	}
+	sock.ServerAuthCurve("", srvPriv)
+
+	if err := sock.Bind("tcp://127.0.0.1:8089"); err != nil {
+		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
+	}
+
+	log.Println("now!!!")
+	time.Sleep(time.Second * 5)
+	if _, err := sock.SendMessage("hhola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!ola!", "fellas"); err != nil {
 		log.Fatalf("Failed sending: %s", err.Error())
 	}
 	time.Sleep(time.Second)
