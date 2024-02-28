@@ -17,19 +17,33 @@ import (
 func main() {
 	srvPub, srvPriv, _ := zmq4.NewCurveKeypair()
 	cliPub, cliPriv, _ := zmq4.NewCurveKeypair()
-	go runPebbePullSock(srvPub, cliPub, cliPriv)
-	time.Sleep(time.Second)
-	runPushSock(srvPub, srvPriv)
+	go runPullSock(srvPub, cliPub, cliPriv)
+	runPebbePushSock(srvPub, srvPriv)
 }
 
-func runPullSock() {
+func runPullSock(
+	srvPub, cliPub, cliPriv string,
+) {
+	srvPub, cliPriv = zmq4.Z85decode(srvPub), zmq4.Z85decode(cliPriv)
 	ctx := gomq.NewContext(context.Background())
 	sock, err := ctx.NewSocket("PULL", "CURVE")
 	if err != nil {
 		log.Fatalf("Failed creating socket: %s", err.Error())
 	}
 
-	if err := sock.Bind("tcp://127.0.0.1:8089"); err != nil {
+	if err := sock.SetOption(zmtp.OptionServer, false); err != nil {
+		log.Fatalf("Failed setting socket role as client: %s", err.Error())
+	}
+
+	if err := sock.SetOption(zmtp.OptionSecKey, cliPriv); err != nil {
+		log.Fatalf("Failed creating socket: %s", err.Error())
+	}
+
+	if err := sock.SetOption(zmtp.OptionSrvKey, srvPub); err != nil {
+		log.Fatalf("Failed setting server key: %s", err.Error())
+	}
+
+	if err := sock.Connect("tcp://127.0.0.1:8089"); err != nil {
 		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
 	}
 
@@ -75,7 +89,6 @@ func runPebbePullSock(
 	for idx := 0; idx < 2; idx++ {
 		sock.SendMessage("HI", "omg")
 		sock.SendMessage("woaw")
-		sock.SendMessage("wwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowwaowaow")
 	}
 }
 
@@ -84,9 +97,8 @@ func runPushSock(
 ) {
 	srvPub, srvPriv = zmq4.Z85decode(srvPub), zmq4.Z85decode(srvPriv)
 
-	time.Sleep(time.Second)
 	ctx := gomq.NewContext(context.Background())
-	sock, err := ctx.NewSocket("PULL", "CURVE")
+	sock, err := ctx.NewSocket("PUSH", "CURVE")
 	if err != nil {
 		log.Fatalf("Failed creating socket: %s", err.Error())
 	}
@@ -108,34 +120,36 @@ func runPushSock(
 	}
 
 	for idx := 0; idx < 6; idx++ {
-		data, err := sock.Recv()
-		if err != nil {
-			panic(err)
-		}
-		for idx, datum := range data {
-			log.Println(idx, string(datum))
-		}
+		sock.Send([][]byte{[]byte("hi!!!"), []byte("guys!!!")})
 	}
+	time.Sleep(time.Millisecond * 100)
 
 	sock.Close()
 }
 
-func runPebbePushSock(srvPub, srvPriv string) {
+func runPebbePushSock(
+	srvPub, srvPriv string,
+) {
 	sock, err := zmq4.NewSocket(zmq4.PUSH)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed creating socket: %s", err.Error())
 	}
-	sock.ServerAuthCurve("", srvPriv)
+	sock.ServerAuthCurve("u", srvPriv)
 
 	if err := sock.Bind("tcp://127.0.0.1:8089"); err != nil {
 		log.Fatalf("Failed connecting to local endpoint: %s", err.Error())
 	}
-
-	log.Println("now!!!")
-	time.Sleep(time.Second * 5)
-	if _, err := sock.SendMessage("hhola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!hola!ola!", "fellas"); err != nil {
-		log.Fatalf("Failed sending: %s", err.Error())
+	if err := sock.SetCurveServer(1); err != nil {
+		panic(err)
 	}
-	time.Sleep(time.Second)
+	if err := sock.SetCurveSecretkey(srvPriv); err != nil {
+		panic(err)
+	}
+
+	for idx := 0; idx < 6; idx++ {
+		sock.SendMessage("hi!!!", "guys!!!")
+	}
+	time.Sleep(time.Millisecond * 100)
+
 	sock.Close()
 }

@@ -55,7 +55,7 @@ func (c *Context) NewSocket(typ string, mechStr string) (*Socket, error) {
 
 	conf := &Config{}
 	conf.Default()
-  mech := mechConstructor()
+	mech := mechConstructor()
 	driver, err := constructor(c.ctx, mech, conf, PrintBus{})
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (c *Context) NewSocket(typ string, mechStr string) (*Socket, error) {
 
 	sock.driver = driver
 	sock.ctx = c
-  sock.mech = mech
+	sock.mech = mech
 	return sock, nil
 }
 

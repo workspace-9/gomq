@@ -65,16 +65,16 @@ func (notReady) Error() string {
 
 var ErrNotReady notReady
 
-type noOptions struct {}
+type noOptions struct{}
 
 func (noOptions) Error() string {
-  return "No options on null sockets"
+	return "No options on null sockets"
 }
 
 var ErrNoOptions noOptions
 
 func (n Null) SetOption(string, any) error {
-  return ErrNoOptions
+	return ErrNoOptions
 }
 
 type NullSocket struct {

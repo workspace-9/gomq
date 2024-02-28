@@ -8,7 +8,7 @@ import (
 
 type Socket struct {
 	driver SocketDriver
-  mech   zmtp.Mechanism
+	mech   zmtp.Mechanism
 	ctx    *Context
 }
 
@@ -102,9 +102,9 @@ func (s Socket) Unbind(addr string) error {
 }
 
 func (s Socket) SetOption(option string, val any) error {
-  return s.mech.SetOption(option, val)
+	return s.mech.SetOption(option, val)
 }
 
 func (s Socket) SetServer(serv bool) error {
-  return s.SetOption(zmtp.OptionServer, serv)
+	return s.SetOption(zmtp.OptionServer, serv)
 }
