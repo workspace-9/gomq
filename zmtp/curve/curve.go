@@ -1,6 +1,7 @@
 package curve
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/workspace-9/gomq/zmtp"
@@ -20,11 +21,8 @@ func (c *Curve) Server() bool {
 }
 
 func (c *Curve) ValidateGreeting(g *zmtp.Greeting) error {
-	if g.Server() == c.Server() {
-		if g.Server() {
-			return ErrBothServers
-		}
-		return ErrBothClients
+	if g.Mechanism() != MechName {
+		return fmt.Errorf("%w: expected %s", zmtp.ErrMechMismatch, MechName)
 	}
 
 	return nil
