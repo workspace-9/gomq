@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/workspace-9/gomq/zmtp"
+	"golang.org/x/crypto/curve25519"
 )
 
 func (c *Curve) SetOption(option string, val any) error {
@@ -57,13 +58,21 @@ func (c *Curve) SetOption(option string, val any) error {
 			return fmt.Errorf("Key must be 32 bytes, got %d", len(byteData))
 		}
 
+		var pubKey, secKey *[32]byte
 		if c.serv != nil {
-			copy(c.serv.privKey[:], byteData)
+			secKey = &c.serv.privKey
+			pubKey = &c.serv.pubKey
 		} else {
 			if c.cli == nil {
 				c.cli = &CurveClient{}
 			}
-			copy(c.cli.privKey[:], byteData)
+			pubKey = &c.cli.pubKey
+			secKey = &c.cli.privKey
+		}
+
+		copy(secKey[:], byteData)
+		if isEmpty(pubKey) {
+			curve25519.ScalarBaseMult(pubKey, secKey)
 		}
 	case zmtp.OptionSrvKey:
 		var byteData []byte

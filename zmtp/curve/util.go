@@ -50,3 +50,13 @@ func PopulateSecKey(sec *[32]byte) {
 		panic(err)
 	}
 }
+
+func isEmpty(key *[32]byte) bool {
+	for _, b := range key {
+		if b != 0 {
+			return false
+		}
+	}
+
+	return true
+}
