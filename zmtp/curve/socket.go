@@ -26,7 +26,6 @@ func (c *CurveSocket) Read() (zmtp.CommandOrMessage, error) {
 	}
 
 	if ret.IsMessage {
-		fmt.Println("ismessage")
 		return c.processMessage(ret.Message.Body)
 	}
 
@@ -38,56 +37,44 @@ func (c *CurveSocket) Read() (zmtp.CommandOrMessage, error) {
 }
 
 func (c *CurveSocket) processMessage(body []byte) (ret zmtp.CommandOrMessage, err error) {
-	fmt.Println("here!!!")
 	if len(body) < 33 {
 		err = fmt.Errorf("Expected body to be at least  bytes, got %d", len(body))
 		return
 	}
 
-	fmt.Println("here2")
 	if body[0] != 7 {
 		err = fmt.Errorf("Expected message command name to have 7 bytes, got %d", body[0])
 		return
 	}
 
-	fmt.Println("here3")
 	nameStr := unsafe.String(&body[1], 7)
 	if nameStr != "MESSAGE" {
 		err = fmt.Errorf("Expected command name to be MESSAGE, got %s", nameStr)
 		return
 	}
 
-	fmt.Println("here4")
 	shortNonce := binary.BigEndian.Uint64(body[8:])
 	var nonce Nonce
-	fmt.Println("here5")
 	if c.isServ {
-		fmt.Println("here6")
 		nonce.Short("CurveZMQMESSAGEC", shortNonce)
 	} else {
-		fmt.Println("here7")
 		nonce.Short("CurveZMQMESSAGES", shortNonce)
 	}
-	fmt.Println("here8")
 	if shortNonce != c.peerNonceIdx+1 {
 		return zmtp.CommandOrMessage{}, fmt.Errorf("Peer used invalid nonce (expected %d, got %d)", c.peerNonceIdx+1, shortNonce)
 	}
 	c.peerNonceIdx++
 	copy(nonce[16:], body[8:])
 	out := make([]byte, len(body)-32)
-	fmt.Println("here9")
 	out, ok := box.OpenAfterPrecomputation(out[0:0], body[16:], nonce.N(), &c.sharedKey)
 	if !ok {
-		fmt.Println("here9")
 		return zmtp.CommandOrMessage{}, fmt.Errorf("Failed opening message box")
 	}
 
-	fmt.Println("herea")
 	ret.IsMessage = true
 	ret.Message = &zmtp.Message{
 		More: (out[0] & 0x1) == 1, Body: out[1:],
 	}
-	fmt.Println(ret)
 	return ret, nil
 }
 
