@@ -111,6 +111,7 @@ func (b *BindDriver) handleConn(conn net.Conn) {
 	greeting.SetVersionMajor(3)
 	greeting.SetVersionMinor(1)
 	greeting.SetMechanism(b.mechanism.Name())
+	greeting.SetServer(b.mechanism.Server())
 	if _, err := greeting.WriteTo(conn); err != nil {
 		b.eventBus.Post(gomq.Event{
 			gomq.EventTypeFailedGreeting,
